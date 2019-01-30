@@ -24,10 +24,10 @@ public abstract class ModelMojo extends AbstractMojo {
   final public static String MAVEN_HELPER_PLUGIN = "org.codehaus.mojo:build-helper-maven-plugin:%s";
   final public static String MAVEN_VERSION_PLUGIN = "org.codehaus.mojo:versions-maven-plugin:%s";
 
-  @Parameter(defaultValue = "false", property = "autopush")
+  @Parameter(defaultValue = "false", property = "auto-push")
   protected Boolean push;
 
-  @Parameter(defaultValue = "false", property = "pull-before")
+  @Parameter(defaultValue = "false", property = "auto-pull")
   protected Boolean pull;
 
   @Parameter(defaultValue = "${session}", readonly = true)
@@ -38,7 +38,7 @@ public abstract class ModelMojo extends AbstractMojo {
   @Parameter(defaultValue = "master", required = true)
   protected String masterBranch;
 
-  @Parameter(defaultValue = "false", property = "removeSnapshotsFromRelease")
+  @Parameter(defaultValue = "false", property = "remove-snapshots-from-release-pom")
   protected Boolean removeSnapshots;
 
   @Parameter(defaultValue = "${settings}", readonly = true)
