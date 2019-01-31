@@ -6,7 +6,11 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.codehaus.plexus.util.cli.Commandline;
 
-
+/**
+ * Use this goal if you need to make the fix in current release (branch should be checkout) or start working on maintenance version.
+ * Goal will increment the maintenance version number.
+ * Work will continue on the current release branch.
+ */
 @Mojo(name = "start-fix", aggregator = true)
 public class StartFixMojo
     extends ModelMojo {
@@ -24,7 +28,7 @@ public class StartFixMojo
     pull(gitCmd);
 
     String currentBranch = currentBranch(gitCmd);
-    if(!currentBranch.startsWith("release/")) {
+    if(!currentBranch.startsWith(releaseBranchPrefix)) {
       throw new MojoFailureException("This command can be run only in release branch, current branch is " + currentBranch);
     }
 
@@ -48,15 +52,16 @@ public class StartFixMojo
     gitCmd.addArguments(new String[]{"commit", "-am", String.format("Start version %s", currentVersion)});
     executeCommand(gitCmd, false);
 
-    if (push) {
-      gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"push"});
+    StringBuilder info = new StringBuilder("Changes are in your local repository.\n")
+        .append("If you are happy with the results then run:");
+    gitCmd.clearArgs();
+    gitCmd.addArguments(new String[]{"push"});
+    info.append(gitCmd.toString()).append("\n");
+    if (autoPush) {
       executeCommand(gitCmd, true);
       getLog().info("All changes pushed");
     } else {
-      getLog().info("Changes are in your local repository.");
-      getLog().info("If you are happy with the results then run:");
-      getLog().info(" git push");
+      getLog().info(info.toString());
     }
 
   }

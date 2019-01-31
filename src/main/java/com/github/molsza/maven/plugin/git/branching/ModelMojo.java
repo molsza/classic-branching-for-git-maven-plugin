@@ -24,22 +24,33 @@ public abstract class ModelMojo extends AbstractMojo {
   final public static String MAVEN_HELPER_PLUGIN = "org.codehaus.mojo:build-helper-maven-plugin:%s";
   final public static String MAVEN_VERSION_PLUGIN = "org.codehaus.mojo:versions-maven-plugin:%s";
 
-  @Parameter(defaultValue = "false", property = "auto-push")
-  protected Boolean push;
+  @Parameter(defaultValue = "false",  property = "auto-push")
+  protected Boolean autoPush;
 
   @Parameter(defaultValue = "false", property = "auto-pull")
-  protected Boolean pull;
+  protected Boolean autoPull;
 
   @Parameter(defaultValue = "${session}", readonly = true)
   protected MavenSession mavenSession;
-  @Parameter(defaultValue = "${project.version}", required = true)
-  private String projectVersion;
 
-  @Parameter(defaultValue = "master", required = true)
-  protected String masterBranch;
+//  @Parameter(defaultValue = "${project.version}", required = true)
+//  private String projectVersion;
+
+  @Parameter(defaultValue = "master", required = true, property = "master-branch-name")
+  protected String masterBranchName;
 
   @Parameter(defaultValue = "false", property = "remove-snapshots-from-release-pom")
-  protected Boolean removeSnapshots;
+  protected Boolean removeSnapshotsFromReleasePom;
+
+  @Parameter(defaultValue = "release", property = "release-branch-prefix")
+  protected String releaseBranchPrefix;
+
+  @Parameter(defaultValue = "feature", property = "feature-branch-prefix")
+  protected String featureBranchPrefix;
+
+  @Parameter(defaultValue = "v", property = "release-tag-prefix")
+  protected String releaseTagPrefix;
+
 
   @Parameter(defaultValue = "${settings}", readonly = true)
   protected Settings settings;
@@ -57,7 +68,7 @@ public abstract class ModelMojo extends AbstractMojo {
   protected int executeCommand(Commandline commandline, boolean showOutput, BufferedWriter writer) throws MojoExecutionException {
     Process process;
     int exitCode = -1;
-    getLog().debug(commandline.toString());
+    getLog().info("Executing: "+commandline.toString());
     try {
       process = commandline.execute();
       BufferedReader bufferedInputStream = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -120,11 +131,11 @@ public abstract class ModelMojo extends AbstractMojo {
   }
 
   protected void pull(Commandline gitCmd) throws MojoExecutionException, MojoFailureException {
-    if (pull) {
+    if (autoPull) {
       gitCmd.clearArgs();
       gitCmd.addArguments(new String[]{"pull"});
       if (executeCommand(gitCmd, true) != 0) {
-        throw new MojoFailureException("Cannot pull changes");
+        throw new MojoFailureException("Cannot pull changes from remote repository");
       }
     }
   }
@@ -132,12 +143,12 @@ public abstract class ModelMojo extends AbstractMojo {
   protected void push(Commandline gitCmd) throws MojoExecutionException, MojoFailureException {
     gitCmd.clearArgs();
     gitCmd.addArguments(new String[]{"push"});
-    if (push) {
+    if (autoPush) {
       if (executeCommand(gitCmd, true) != 0) {
-        throw new MojoFailureException("Cannot pull changes");
+        throw new MojoFailureException("Cannot pull changes from remote repository");
       }
     } else {
-      getLog().info("Automatic push is disabled. If you want to push your local changes then run:");
+      getLog().info("Automatic push is disabled (enable them using autoPush). If you want to push your local changes then run:");
       getLog().info(gitCmd.toString());
     }
     gitCmd.clearArgs();
@@ -145,7 +156,7 @@ public abstract class ModelMojo extends AbstractMojo {
 
 
   protected String makeRelease(Commandline mavenCmd, Commandline gitCmd) throws MojoFailureException, MojoExecutionException {
-    if (removeSnapshots) {
+    if (removeSnapshotsFromReleasePom) {
       getLog().info("Replacing snapshots dependencies with its release versions and setting the release version");
       mavenCmd.addArguments(new String[]{"-B", String.format(MAVEN_VERSION_PLUGIN, "use-releases"), "-DfailIfNotReplaced=true", "-DgenerateBackupPoms=true", String.format(MAVEN_VERSION_PLUGIN, "set"), "-DremoveSnapshot=true", "verify"});
       if (executeCommand(mavenCmd, true) != 0) {
@@ -172,9 +183,9 @@ public abstract class ModelMojo extends AbstractMojo {
       throw new MojoFailureException("Cannot commit version updates");
     }
 
-    getLog().info("Create tag " + String.format("v%s", currentVersion));
+    getLog().info("Create tag " + releaseTagName(currentVersion));
     gitCmd.clearArgs();
-    gitCmd.addArguments(new String[]{"tag", "-a", String.format("v%s", currentVersion), "-m", String.format("Version %s", currentVersion)});
+    gitCmd.addArguments(new String[]{"tag", "-a", releaseTagName(currentVersion), "-m", String.format("Version %s", currentVersion)});
 
     if (executeCommand(gitCmd, false) != 0) {
       throw new MojoFailureException("Cannot create a tag");
@@ -183,7 +194,7 @@ public abstract class ModelMojo extends AbstractMojo {
   }
 
   protected void fetch(Commandline gitCmd) throws MojoExecutionException {
-    if (pull) {
+    if (autoPull) {
       gitCmd.clearArgs();
       gitCmd.addArguments(new String[]{"fetch"});
       executeCommand(gitCmd, true);
@@ -198,6 +209,34 @@ public abstract class ModelMojo extends AbstractMojo {
       throw new MojoFailureException("Cannot determine the branch name, are you in a git repository?");
     } else {
       return writer.getBuffer().toString().trim();
+    }
+  }
+
+  protected String releaseName(String name) throws MojoFailureException {
+    return addPrefixToName(name, releaseBranchPrefix);
+  }
+
+  protected String featureName(String name) throws MojoFailureException {
+    return addPrefixToName(name, featureBranchPrefix);
+  }
+
+  protected String releaseTagName(String name) {
+    return releaseTagPrefix+name;
+  }
+
+  protected String addPrefixToName(String name, String prefix) throws MojoFailureException {
+    if(prefix == null || prefix.isEmpty()) {
+      return name;
+    } else {
+      if(name.contains("/")){
+        if(name.startsWith(prefix)) {
+          return name;
+        } else {
+          throw new MojoFailureException("Branch "+name+" should be prefixed by: "+ prefix);
+        }
+      } else {
+        return prefix + "/" + name;
+      }
     }
   }
 }

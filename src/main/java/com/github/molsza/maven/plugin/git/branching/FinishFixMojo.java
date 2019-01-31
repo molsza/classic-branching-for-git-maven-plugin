@@ -6,7 +6,11 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.codehaus.plexus.util.cli.Commandline;
 
-
+/**
+ * Use this goal when you want to conclude your work on a current hotfix.
+ * You should be in release branch you want to complete.
+ * Goal will set the new versions. Verify the build. And create a tag.
+ */
 @Mojo(name = "finish-fix", aggregator = true)
 public class FinishFixMojo extends ModelMojo {
 
@@ -21,7 +25,7 @@ public class FinishFixMojo extends ModelMojo {
     checkUncommitted(gitCmd);
 
     String currentBranch = currentBranch(gitCmd);
-    if(!currentBranch.startsWith("release/")) {
+    if(!currentBranch.startsWith(releaseBranchPrefix)) {
       throw new MojoFailureException("This command can be run only in release branch, current branch is " + currentBranch);
     }
 
@@ -31,20 +35,20 @@ public class FinishFixMojo extends ModelMojo {
     }
 
     currentVersion = makeRelease(mavenCmd, gitCmd);
-    if (push) {
+    if (autoPush) {
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"push"});
+      gitCmd.addArguments(new String[]{"autoPush"});
       executeCommand(gitCmd, true);
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"push", "origin", String.format("v%s", currentVersion)});
+      gitCmd.addArguments(new String[]{"autoPush", "origin", releaseTagName(currentVersion)});
       executeCommand(gitCmd, true);
     } else {
       getLog().info("Changes are in your local repository.");
       getLog().info("If you are happy with the results then run:");
-      getLog().info(String.format(" git push origin v%s", currentVersion));
-      getLog().info(" git push");
+      getLog().info(String.format(" git autoPush origin %s", releaseTagName(currentVersion)));
+      getLog().info(" git autoPush");
     }
-    getLog().info(String.format("v%s", currentVersion) + " has been released");
+    getLog().info(releaseTagName(currentVersion) + " has been released");
 
   }
 

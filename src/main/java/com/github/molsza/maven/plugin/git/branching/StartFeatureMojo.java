@@ -9,11 +9,16 @@ import org.codehaus.plexus.components.interactivity.Prompter;
 import org.codehaus.plexus.components.interactivity.PrompterException;
 import org.codehaus.plexus.util.cli.Commandline;
 
+/**
+ * Use this goal to start new feature.
+ * The new feature will start form your current branch, but finish goal will always merged it to main branch.
+ * This is the only goal which doesn't require you to have no uncommitted changes.
+ */
 @Mojo(name = "start-feature", aggregator = true)
 public class StartFeatureMojo
     extends ModelMojo {
 
-  @Parameter(name = "featureName")
+  @Parameter(property = "feature-name")
   private String featureName;
 
   @Component
@@ -26,20 +31,18 @@ public class StartFeatureMojo
     mavenCmd.setExecutable("mvn");
     gitCmd.setExecutable("git");
 
-    checkout(gitCmd, masterBranch);
+    checkout(gitCmd, masterBranchName);
 
     while (settings.isInteractiveMode() && (featureName == null || featureName.trim().isEmpty())) {
       try {
-        featureName = prompter.prompt("Name of new feature:");
+        featureName = prompter.prompt("Name of new feature");
       } catch (PrompterException e) {
         throw new MojoFailureException(e.getMessage());
       }
     }
 
-    if (!featureName.startsWith("feature/")) {
-      featureName = "feature/" + featureName;
-    }
     featureName = featureName.replace(" ","_");
+    featureName = featureName(featureName);
 
     String currentVersion = getCurrentProjectVersion();
     getLog().info(" " + currentVersion);
@@ -48,14 +51,14 @@ public class StartFeatureMojo
     gitCmd.addArguments(new String[]{"checkout", "-b", featureName});
     executeCommand(gitCmd, true);
 
-    if (push) {
+    if (autoPush) {
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"push", "origin", featureName});
+      gitCmd.addArguments(new String[]{"autoPush", "origin", featureName});
       executeCommand(gitCmd, true);
     } else {
       getLog().info("Changes are in your local repository.");
       getLog().info("If you are happy with the results then run:");
-      getLog().info(" git push origin " + featureName);
+      getLog().info(" git autoPush origin " + featureName);
     }
 
   }

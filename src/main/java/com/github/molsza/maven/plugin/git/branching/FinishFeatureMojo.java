@@ -2,14 +2,13 @@ package com.github.molsza.maven.plugin.git.branching;
 
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.codehaus.plexus.components.interactivity.Prompter;
-import org.codehaus.plexus.components.interactivity.PrompterException;
-import org.codehaus.plexus.util.StringUtils;
 import org.codehaus.plexus.util.cli.Commandline;
 
+/**
+ * Run this goal when you want to finish your current feature.
+ * Goal merges the current branch into main branch and removes the current branch.
+ */
 @Mojo(name = "finish-feature", aggregator = true)
 public class FinishFeatureMojo
     extends ModelMojo {
@@ -22,14 +21,14 @@ public class FinishFeatureMojo
     gitCmd.setExecutable("git");
 
     String featureBranch = currentBranch(gitCmd);
-    if(!featureBranch.startsWith("feature/")) {
+    if(!featureBranch.startsWith(featureBranchPrefix)) {
       throw new MojoFailureException("This command can be run only in feature branch, current branch is " + featureBranch);
     }
 
     checkUncommitted(gitCmd);
 
     pull(gitCmd);
-    checkout(gitCmd, masterBranch);
+    checkout(gitCmd, masterBranchName);
     pull(gitCmd);
 
     gitCmd.clearArgs();
@@ -43,8 +42,8 @@ public class FinishFeatureMojo
     if(executeCommand(gitCmd, false) == 0) {
       getLog().info("Local branch deleted: "+featureBranch);
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"push", "origin", "--delete", featureBranch});
-      if(push) {
+      gitCmd.addArguments(new String[]{"autoPush", "origin", "--delete", featureBranch});
+      if(autoPush) {
         if(executeCommand(gitCmd,false) == 0) {
           getLog().info("Remote branch deleted: "+featureBranch);
         }
@@ -54,7 +53,7 @@ public class FinishFeatureMojo
       }
     }
 
-    getLog().info("Feature branch "+featureBranch + " has been merged to "+masterBranch);
+    getLog().info("Feature branch "+featureBranch + " has been merged to "+ masterBranchName);
     push(gitCmd);
 
   }
