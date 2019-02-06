@@ -18,9 +18,8 @@ public class StartFixMojo
 
   public void execute()
       throws MojoExecutionException, MojoFailureException {
-    Commandline mavenCmd = new Commandline();
+    Commandline mavenCmd = getMavenExecutable();
     Commandline gitCmd = new Commandline();
-    mavenCmd.setExecutable("mvn");
     gitCmd.setExecutable("git");
 
     checkUncommitted(gitCmd);
@@ -48,22 +47,51 @@ public class StartFixMojo
     currentVersion = getCurrentProjectVersion();
     getLog().info("Fixed version is " + currentVersion);
 
+    String newBranchName = releaseName(removeSnapshot(currentVersion));
+    if(separateFixBranch) {
+      getLog().info("Creating release branch " + newBranchName);
+      gitCmd.clearArgs();
+      gitCmd.addArguments(new String[]{"checkout","-b", newBranchName});
+      if (executeCommand(gitCmd, false) != 0) {
+        getLog().error("Release branch has not been created");
+      }
+    }
+
     gitCmd.clearArgs();
     gitCmd.addArguments(new String[]{"commit", "-am", String.format("Start version %s", currentVersion)});
     executeCommand(gitCmd, false);
 
-    StringBuilder info = new StringBuilder("Changes are in your local repository.\n")
-        .append("If you are happy with the results then run:");
-    gitCmd.clearArgs();
-    gitCmd.addArguments(new String[]{"push"});
-    info.append(gitCmd.toString()).append("\n");
-    if (autoPush) {
+    if(separateFixBranch) {
+      getLog().info("Removing local branch " + currentBranch);
+      gitCmd.clearArgs();
+      gitCmd.addArguments(new String[]{"branch", "-d", currentBranch});
       executeCommand(gitCmd, true);
-      getLog().info("All changes pushed");
-    } else {
-      getLog().info(info.toString());
     }
+    if(!autoPush) {
+      getLog().info("Changes are in your local repository.");
+      getLog().info("If you are happy with the results then run:");
+    }
+    if(separateFixBranch) {
+      gitCmd.clearArgs();
+      gitCmd.addArguments(new String[]{"push", "-u", "origin", newBranchName + ":" + newBranchName});
+      executeOrPrintPushCommand(gitCmd);
+      gitCmd.clearArgs();
+      gitCmd.addArguments(new String[]{"push", "origin", "--delete", currentBranch});
+      executeOrPrintPushCommand(gitCmd);
+      gitCmd.clearArgs();
+    } else {
+      gitCmd.clearArgs();
+      gitCmd.addArguments(new String[]{"push"});
+      executeOrPrintPushCommand(gitCmd);
+    }
+  }
 
+  private String removeSnapshot(String version) {
+    int indexOf = version.indexOf("-SNAPSHOT");
+    if(indexOf > 1) {
+      return version.substring(0, indexOf);
+    }
+    return version;
   }
 
 

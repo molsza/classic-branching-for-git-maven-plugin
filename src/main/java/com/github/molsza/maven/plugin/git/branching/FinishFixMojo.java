@@ -17,9 +17,8 @@ public class FinishFixMojo extends ModelMojo {
 
   public void execute()
           throws MojoExecutionException, MojoFailureException {
-    Commandline mavenCmd = new Commandline();
+    Commandline mavenCmd = getMavenExecutable();
     Commandline gitCmd = new Commandline();
-    mavenCmd.setExecutable("mvn");
     gitCmd.setExecutable("git");
 
     checkUncommitted(gitCmd);
@@ -35,19 +34,21 @@ public class FinishFixMojo extends ModelMojo {
     }
 
     currentVersion = makeRelease(mavenCmd, gitCmd);
+    pomCommit(mavenCmd);
     if (autoPush) {
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"autoPush"});
+      gitCmd.addArguments(new String[]{"push"});
       executeCommand(gitCmd, true);
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"autoPush", "origin", releaseTagName(currentVersion)});
+      gitCmd.addArguments(new String[]{"push", "origin", releaseTagName(currentVersion)});
       executeCommand(gitCmd, true);
     } else {
       getLog().info("Changes are in your local repository.");
       getLog().info("If you are happy with the results then run:");
-      getLog().info(String.format(" git autoPush origin %s", releaseTagName(currentVersion)));
-      getLog().info(" git autoPush");
+      getLog().info(String.format(" git push origin %s", releaseTagName(currentVersion)));
+      getLog().info(" git push");
     }
+
     getLog().info(releaseTagName(currentVersion) + " has been released");
 
   }

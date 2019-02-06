@@ -13,10 +13,12 @@ import org.codehaus.plexus.util.cli.Commandline;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
+import java.util.Map;
 
 public abstract class ModelMojo extends AbstractMojo {
 
@@ -24,10 +26,10 @@ public abstract class ModelMojo extends AbstractMojo {
   final public static String MAVEN_HELPER_PLUGIN = "org.codehaus.mojo:build-helper-maven-plugin:%s";
   final public static String MAVEN_VERSION_PLUGIN = "org.codehaus.mojo:versions-maven-plugin:%s";
 
-  @Parameter(defaultValue = "false",  property = "auto-push")
+  @Parameter(defaultValue = "false",  property = "autoPush")
   protected Boolean autoPush;
 
-  @Parameter(defaultValue = "false", property = "auto-pull")
+  @Parameter(defaultValue = "false", property = "autoPull")
   protected Boolean autoPull;
 
   @Parameter(defaultValue = "${session}", readonly = true)
@@ -36,21 +38,23 @@ public abstract class ModelMojo extends AbstractMojo {
 //  @Parameter(defaultValue = "${project.version}", required = true)
 //  private String projectVersion;
 
-  @Parameter(defaultValue = "master", required = true, property = "master-branch-name")
+  @Parameter(defaultValue = "master", required = true, property = "masterBranchName")
   protected String masterBranchName;
 
-  @Parameter(defaultValue = "false", property = "remove-snapshots-from-release-pom")
+  @Parameter(defaultValue = "false", property = "removeSnapshotsFromReleasePom")
   protected Boolean removeSnapshotsFromReleasePom;
 
-  @Parameter(defaultValue = "release", property = "release-branch-prefix")
+  @Parameter(defaultValue = "release", property = "releaseBranchPrefix")
   protected String releaseBranchPrefix;
 
-  @Parameter(defaultValue = "feature", property = "feature-branch-prefix")
+  @Parameter(defaultValue = "feature", property = "featureBranchPrefix")
   protected String featureBranchPrefix;
 
-  @Parameter(defaultValue = "v", property = "release-tag-prefix")
+  @Parameter(defaultValue = "v", property = "releaseTagPrefix")
   protected String releaseTagPrefix;
 
+  @Parameter(defaultValue = "false", property = "separateFixBranch")
+  protected Boolean separateFixBranch;
 
   @Parameter(defaultValue = "${settings}", readonly = true)
   protected Settings settings;
@@ -61,6 +65,12 @@ public abstract class ModelMojo extends AbstractMojo {
     executeCommand(mavenCmd, true);
   }
 
+  protected void pomCommit(Commandline mavenCmd) throws MojoExecutionException {
+    mavenCmd.clearArgs();
+    mavenCmd.addArguments(new String[]{"-B", String.format(MAVEN_VERSION_PLUGIN, "commit")});
+    executeCommand(mavenCmd, true);
+  }
+
   protected int executeCommand(Commandline commandline, boolean showOutput) throws MojoExecutionException {
     return executeCommand(commandline, showOutput, null);
   }
@@ -68,9 +78,14 @@ public abstract class ModelMojo extends AbstractMojo {
   protected int executeCommand(Commandline commandline, boolean showOutput, BufferedWriter writer) throws MojoExecutionException {
     Process process;
     int exitCode = -1;
-    getLog().info("Executing: "+commandline.toString());
+    if(showOutput) {
+      getLog().info("Executing: " + commandline.toString());
+    } else {
+      getLog().debug("Executing: " + commandline.toString());
+    }
     try {
       process = commandline.execute();
+      StringWriter internalWriter = new StringWriter();
       BufferedReader bufferedInputStream = new BufferedReader(new InputStreamReader(process.getInputStream()));
       String line;
       while ((line = bufferedInputStream.readLine()) != null) {
@@ -78,6 +93,8 @@ public abstract class ModelMojo extends AbstractMojo {
           writer.append(line);
           writer.newLine();
         }
+        internalWriter.append(line);
+        internalWriter.append("\n");
         if (showOutput) {
           getLog().info(line);
         } else {
@@ -85,6 +102,16 @@ public abstract class ModelMojo extends AbstractMojo {
         }
       }
       exitCode = process.waitFor();
+      if(exitCode != 0) {
+        getLog().debug("Exit code is "+exitCode);
+      }
+      if(exitCode == 0 && (commandline.toString().contains("push") || commandline.toString().contains("pull"))) {
+        String output = internalWriter.toString();
+        if(output.contains("There is no tracking information for the current branch") || output.contains("fatal")) {
+          exitCode = 1;
+          getLog().info(output);
+        }
+      }
       if (writer != null) writer.flush();
     } catch (IOException e) {//nop}
     } catch (InterruptedException e) {
@@ -239,4 +266,27 @@ public abstract class ModelMojo extends AbstractMojo {
       }
     }
   }
+
+  protected void executeOrPrintPushCommand(Commandline gitCmd) throws MojoExecutionException {
+    if (autoPush) {
+      executeCommand(gitCmd, true);
+    } else {
+      getLog().info(gitCmd.toString());
+    }
+  }
+
+  protected Commandline getMavenExecutable() {
+    Commandline cmd = new Commandline();
+    String home = System.getProperties().getProperty("maven.home");
+    if(home == null || home.isEmpty()) {
+      cmd.setExecutable("mvn");
+    } else {
+      if(!home.endsWith(File.separator)) {
+        home += File.separator;
+      }
+      cmd.setExecutable(home+"bin"+File.separator+"mvn");
+    }
+    return cmd;
+  }
+
 }

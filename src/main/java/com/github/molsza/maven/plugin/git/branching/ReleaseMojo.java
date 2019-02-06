@@ -16,9 +16,8 @@ public class ReleaseMojo
 
   public void execute()
       throws MojoExecutionException, MojoFailureException {
-    Commandline mavenCmd = new Commandline();
+    Commandline mavenCmd = getMavenExecutable();
     Commandline gitCmd = new Commandline();
-    mavenCmd.setExecutable("mvn");
     gitCmd.setExecutable("git");
 
 
@@ -29,43 +28,59 @@ public class ReleaseMojo
 
     String currentVersion = makeRelease(mavenCmd, gitCmd);
 
-    getLog().info("Creating release branch " + releaseName(currentVersion));
-    gitCmd.clearArgs();
-    gitCmd.addArguments(new String[]{"branch", releaseName(currentVersion), releaseTagName(currentVersion)});
-    if (executeCommand(gitCmd, false) != 0) {
-      getLog().error("Release branch has not been created");
-    }
-
-    mavenCmd.clearArgs();
-    mavenCmd.addArguments(new String[]{"-B", String.format(MAVEN_HELPER_PLUGIN,"parse-version"), String.format(MAVEN_VERSION_PLUGIN,"set"), "-DnewVersion=${parsedVersion.majorVersion}.${parsedVersion.nextMinorVersion}.0-SNAPSHOT", String.format(MAVEN_VERSION_PLUGIN,"commit")});
-    if (executeCommand(mavenCmd, false) != 0) {
-      throw new MojoFailureException("Cannot set new snapshot version");
-    }
-
-    String newSnapshotVersion = getCurrentProjectVersion();
-
-    gitCmd.clearArgs();
-    gitCmd.addArguments(new String[]{"commit", "-am", String.format("Start version %s", newSnapshotVersion)});
-    executeCommand(gitCmd, false);
-
-    if (autoPush) {
+    try {
+      getLog().info("Creating release branch " + releaseName(currentVersion));
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"push", "-u", "origin", releaseName(currentVersion)+":"+releaseName(currentVersion)});
-      executeCommand(gitCmd, true);
+      gitCmd.addArguments(new String[]{"branch", releaseName(convertToReleaseBranch(currentVersion)), releaseTagName(currentVersion)});
+      if (executeCommand(gitCmd, false) != 0) {
+        throw new MojoFailureException("Release branch has not been created");
+      }
+
+      mavenCmd.clearArgs();
+      mavenCmd.addArguments(new String[]{"-B", String.format(MAVEN_HELPER_PLUGIN, "parse-version"), String.format(MAVEN_VERSION_PLUGIN, "set"), "-DnewVersion=${parsedVersion.majorVersion}.${parsedVersion.nextMinorVersion}.0-SNAPSHOT", String.format(MAVEN_VERSION_PLUGIN, "commit")});
+      if (executeCommand(mavenCmd, false) != 0) {
+        throw new MojoFailureException("Cannot set new snapshot version");
+      }
+
+      String newSnapshotVersion = getCurrentProjectVersion();
+
+      gitCmd.clearArgs();
+      gitCmd.addArguments(new String[]{"commit", "-am", String.format("Start version %s", newSnapshotVersion)});
+      executeCommand(gitCmd, false);
+
+      if (!autoPush) {
+        getLog().info("Changes are in your local repository.");
+        getLog().info("If you are happy with the results then run:");
+      }
+      gitCmd.clearArgs();
+      gitCmd.addArguments(new String[]{"push", "-u", "origin", releaseName(convertToReleaseBranch(currentVersion)) + ":" + releaseName(convertToReleaseBranch(currentVersion))});
+      executeOrPrintPushCommand(gitCmd);
       gitCmd.clearArgs();
       gitCmd.addArguments(new String[]{"push"});
-      executeCommand(gitCmd, true);
+      executeOrPrintPushCommand(gitCmd);
       gitCmd.clearArgs();
       gitCmd.addArguments(new String[]{"push", "origin", releaseTagName(currentVersion)});
-      executeCommand(gitCmd, true);
-    } else {
-      getLog().info("Changes are in your local repository.");
-      getLog().info("If you are happy with the results then run:");
-      getLog().info(String.format(" git push -u origin %s:%s", releaseName(currentVersion),releaseName(currentVersion)));
-      getLog().info(String.format(" git push origin %s", releaseTagName(currentVersion)));
-      getLog().info(" git push");
+      executeOrPrintPushCommand(gitCmd);
+      getLog().info(releaseTagName(currentVersion) + " has been released");
+    } catch (Exception e) {
+      pomRevert(mavenCmd);
     }
-    getLog().info(releaseTagName(currentVersion) + " has been released");
+  }
+
+  private String convertToReleaseBranch(String version) {
+    if (!separateFixBranch) {
+      String[] verArray = version.split("\\.");
+      version = "";
+      if (verArray.length >= 1) {
+        version += verArray[0];
+      }
+      if (verArray.length >= 2) {
+        version += "." + verArray[1] + ".x";
+      } else {
+        version += ".0.x";
+      }
+    }
+    return version;
   }
 
 }

@@ -26,9 +26,7 @@ public class StartFeatureMojo
 
   public void execute()
       throws MojoExecutionException, MojoFailureException {
-    Commandline mavenCmd = new Commandline();
     Commandline gitCmd = new Commandline();
-    mavenCmd.setExecutable("mvn");
     gitCmd.setExecutable("git");
 
     checkout(gitCmd, masterBranchName);
@@ -53,12 +51,12 @@ public class StartFeatureMojo
 
     if (autoPush) {
       gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"autoPush", "origin", featureName});
+      gitCmd.addArguments(new String[]{"push", "origin", featureName});
       executeCommand(gitCmd, true);
     } else {
       getLog().info("Changes are in your local repository.");
       getLog().info("If you are happy with the results then run:");
-      getLog().info(" git autoPush origin " + featureName);
+      getLog().info(" git push origin " + featureName);
     }
 
   }
