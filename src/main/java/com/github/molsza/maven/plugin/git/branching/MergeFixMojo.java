@@ -35,7 +35,7 @@ public class MergeFixMojo
 
     getLog().info("Merging " + currentBranch + " into " + masterBranchName);
 
-    String mergebranchName = currentBranch + "-merge";
+    String mergebranchName = currentBranch + "-port";
 
     getLog().info("Creating merging branch " + mergebranchName);
     gitCmd.clearArgs();
@@ -63,9 +63,7 @@ public class MergeFixMojo
 
     getLog().info("Merged without conflicts");
     getLog().info("Removing local branch " + mergebranchName);
-    gitCmd.clearArgs();
-    gitCmd.addArguments(new String[]{"branch", "-d", mergebranchName});
-    executeCommand(gitCmd, true);
+    deleteLocalBranch(gitCmd, mergebranchName);
 
     if (!autoPush) {
       getLog().info("Changes are in your local repository.");

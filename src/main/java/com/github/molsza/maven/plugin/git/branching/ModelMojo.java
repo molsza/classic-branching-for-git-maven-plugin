@@ -12,13 +12,11 @@ import org.codehaus.plexus.util.cli.CommandLineException;
 import org.codehaus.plexus.util.cli.Commandline;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
-import java.util.Map;
 
 public abstract class ModelMojo extends AbstractMojo {
 
@@ -56,26 +54,30 @@ public abstract class ModelMojo extends AbstractMojo {
   @Parameter(defaultValue = "false", property = "separateFixBranch")
   protected Boolean separateFixBranch;
 
+  @Parameter(defaultValue = "false", property = "createOnlyBranchOnRelease")
+  protected Boolean createOnlyBranchOnRelease;
+
   @Parameter(defaultValue = "${settings}", readonly = true)
   protected Settings settings;
+
 
   protected void pomRevert(Commandline mavenCmd) throws MojoExecutionException {
     mavenCmd.clearArgs();
     mavenCmd.addArguments(new String[]{"-B", String.format(MAVEN_VERSION_PLUGIN, "revert")});
-    executeCommand(mavenCmd, true);
+    executeCommand(mavenCmd, false);
   }
 
   protected void pomCommit(Commandline mavenCmd) throws MojoExecutionException {
     mavenCmd.clearArgs();
     mavenCmd.addArguments(new String[]{"-B", String.format(MAVEN_VERSION_PLUGIN, "commit")});
-    executeCommand(mavenCmd, true);
+    executeCommand(mavenCmd, false);
   }
 
   protected int executeCommand(Commandline commandline, boolean showOutput) throws MojoExecutionException {
     return executeCommand(commandline, showOutput, null);
   }
 
-  protected int executeCommand(Commandline commandline, boolean showOutput, BufferedWriter writer) throws MojoExecutionException {
+  protected int executeCommand(Commandline commandline, boolean showOutput, StringWriter writer) throws MojoExecutionException {
     Process process;
     int exitCode = -1;
     if(showOutput) {
@@ -91,7 +93,7 @@ public abstract class ModelMojo extends AbstractMojo {
       while ((line = bufferedInputStream.readLine()) != null) {
         if (writer != null) {
           writer.append(line);
-          writer.newLine();
+          writer.append("\n");
         }
         internalWriter.append(line);
         internalWriter.append("\n");
@@ -193,7 +195,7 @@ public abstract class ModelMojo extends AbstractMojo {
     } else {
       getLog().info("Setting the release version");
       mavenCmd.addArguments(new String[]{"-B", "-DgenerateBackupPoms=true", String.format(MAVEN_VERSION_PLUGIN, "set"), "-DremoveSnapshot=true", "verify"});
-      if (executeCommand(mavenCmd, false) != 0) {
+      if (executeCommand(mavenCmd, true) != 0) {
         pomRevert(mavenCmd);
         throw new MojoFailureException("Cannot set new version, check logs for details");
       }
@@ -232,7 +234,7 @@ public abstract class ModelMojo extends AbstractMojo {
     StringWriter writer = new StringWriter();
     gitCmd.clearArgs();
     gitCmd.addArguments(new String[]{"rev-parse", "--abbrev-ref", "HEAD"});
-    if (executeCommand(gitCmd, false, new BufferedWriter(writer)) != 0) {
+    if (executeCommand(gitCmd, false, writer) != 0) {
       throw new MojoFailureException("Cannot determine the branch name, are you in a git repository?");
     } else {
       return writer.getBuffer().toString().trim();
@@ -288,5 +290,18 @@ public abstract class ModelMojo extends AbstractMojo {
     }
     return cmd;
   }
+
+  protected int deleteLocalBranch(Commandline gitCmd, String branch) throws MojoExecutionException {
+    StringWriter writer = new StringWriter();
+    gitCmd.clearArgs();
+    gitCmd.addArguments(new String[]{"rev-parse", branch});
+    executeCommand(gitCmd, false, writer);
+    String sha = writer.toString().trim();
+    getLog().info("Removing local branch " + branch+", to restore run: git checkout -b "+ branch +" "+sha);
+    gitCmd.clearArgs();
+    gitCmd.addArguments(new String[]{"branch", "-d", branch});
+    return executeCommand(gitCmd, true);
+  }
+
 
 }

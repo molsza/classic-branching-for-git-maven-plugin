@@ -62,10 +62,7 @@ public class StartFixMojo
     executeCommand(gitCmd, false);
 
     if(separateFixBranch) {
-      getLog().info("Removing local branch " + currentBranch);
-      gitCmd.clearArgs();
-      gitCmd.addArguments(new String[]{"branch", "-d", currentBranch});
-      executeCommand(gitCmd, true);
+      deleteLocalBranch(gitCmd, currentBranch);
     }
     if(!autoPush) {
       getLog().info("Changes are in your local repository.");

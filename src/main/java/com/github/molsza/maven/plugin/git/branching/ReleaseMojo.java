@@ -20,7 +20,6 @@ public class ReleaseMojo
     Commandline gitCmd = new Commandline();
     gitCmd.setExecutable("git");
 
-
     checkUncommitted(gitCmd);
     checkout(gitCmd, masterBranchName);
     fetch(gitCmd);

@@ -59,9 +59,7 @@ public class FinishFeatureMojo
       throw new MojoFailureException("There are issues with your merge. Check the logs above.");
     }
 
-    gitCmd.clearArgs();
-    gitCmd.addArguments(new String[]{"branch", "-d", featureBranch});
-    if (executeCommand(gitCmd, false) == 0) {
+    if (deleteLocalBranch(gitCmd, featureBranch) == 0) {
       getLog().info("Local branch deleted: " + featureBranch);
       if (!notrack) {
         gitCmd.clearArgs();
